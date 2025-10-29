@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
+	"github.com/ethereum/go-ethereum/consensus/misc/migration"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/txpool"
@@ -1201,6 +1202,10 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		vmctx := core.NewEVMBlockContext(env.header, w.chain, &w.coinbase)
 		vevm := vm.NewEVM(vmctx, vm.TxContext{}, env.state, w.chainConfig, vm.Config{})
 		core.ProcessParentBlockHash(env.header.ParentHash, vevm)
+	}
+
+	if w.chainConfig.IsMigration(env.header.Number) {
+		migration.EnsureOptimismPredeploys(w.chainConfig, env.header.Number, env.state)
 	}
 
 	// Accumulate the uncles for the current block

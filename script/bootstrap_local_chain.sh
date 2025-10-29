@@ -44,7 +44,7 @@ done
 
 for i in $(seq 1 $NUM_NODES); do
   rm -rf $RONIN_NODE_PATH/node$i/ronin
-  $RONIN_CMD init --datadir $RONIN_NODE_PATH/node$i $GENESIS_FILE
+  $RONIN_CMD init --datadir $RONIN_NODE_PATH/node$i --cache.preimages=true $GENESIS_FILE
 done
 
 NODE1_NODEKEY=$(cat $RONIN_NODE_PATH/node1/ronin/nodekey)
@@ -78,7 +78,7 @@ $RONIN_CMD --http.api eth,net,web3,debug --networkid 2022 --verbosity 3 \\
   --bootnodes enode://$BOOTNODE_ADDR@127.0.0.1:30304 \\
   --mock.blspublickeys "$bls_public_keys" \\
   --finality.blswalletpath $RONIN_NODE_PATH/node$i/keystore \\
-  --finality.blspasswordpath $RONIN_NODE_PATH/node$i/keystore/password --finality.enable --finality.enablesign
+  --finality.blspasswordpath $RONIN_NODE_PATH/node$i/keystore/password --finality.enable --finality.enablesign --cache.preimages=true
 EOF
 done
 

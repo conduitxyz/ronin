@@ -609,14 +609,15 @@ type ChainConfig struct {
 
 	AntennaBlock *big.Int `json:"antennaBlock,omitempty"` // AntennaBlock switch block (nil = no fork, 0 = already on activated)
 	// Miko hardfork introduces sponsored transactions
-	MikoBlock     *big.Int `json:"mikoBlock,omitempty"`     // Miko switch block (nil = no fork, 0 = already on activated)
-	TrippBlock    *big.Int `json:"trippBlock,omitempty"`    // Tripp switch block (nil = no fork, 0 = already on activated)
-	TrippPeriod   *big.Int `json:"trippPeriod,omitempty"`   // The period number at Tripp fork block.
-	AaronBlock    *big.Int `json:"aaronBlock,omitempty"`    // Aaron switch block (nil = no fork, 0 = already on activated)
-	ShanghaiBlock *big.Int `json:"shanghaiBlock,omitempty"` // Shanghai switch block (nil = no fork, 0 = already on activated)
-	CancunBlock   *big.Int `json:"cancunBlock,omitempty"`   // Cancun switch block (nil = no fork, 0 = already on activated)
-	VenokiBlock   *big.Int `json:"venokiBlock,omitempty"`   // Venoki switch block (nil = no fork, 0 = already on activated)
-	KotaroBlock   *big.Int `json:"kotaroBlock,omitempty"`   // Kotaro (Prague) switch block (nil = no fork, 0 = already on activated)
+	MikoBlock      *big.Int `json:"mikoBlock,omitempty"`      // Miko switch block (nil = no fork, 0 = already on activated)
+	TrippBlock     *big.Int `json:"trippBlock,omitempty"`     // Tripp switch block (nil = no fork, 0 = already on activated)
+	TrippPeriod    *big.Int `json:"trippPeriod,omitempty"`    // The period number at Tripp fork block.
+	AaronBlock     *big.Int `json:"aaronBlock,omitempty"`     // Aaron switch block (nil = no fork, 0 = already on activated)
+	ShanghaiBlock  *big.Int `json:"shanghaiBlock,omitempty"`  // Shanghai switch block (nil = no fork, 0 = already on activated)
+	CancunBlock    *big.Int `json:"cancunBlock,omitempty"`    // Cancun switch block (nil = no fork, 0 = already on activated)
+	VenokiBlock    *big.Int `json:"venokiBlock,omitempty"`    // Venoki switch block (nil = no fork, 0 = already on activated)
+	KotaroBlock    *big.Int `json:"kotaroBlock,omitempty"`    // Kotaro (Prague) switch block (nil = no fork, 0 = already on activated)
+	MigrationBlock *big.Int `json:"migrationBlock,omitempty"` // Migration switch block (nil = no fork, 0 = already on activated)
 
 	BlacklistContractAddress           *common.Address `json:"blacklistContractAddress,omitempty"`           // Address of Blacklist Contract (nil = no blacklist)
 	FenixValidatorContractAddress      *common.Address `json:"fenixValidatorContractAddress,omitempty"`      // Address of Ronin Contract in the Fenix hardfork (nil = no blacklist)
@@ -961,6 +962,11 @@ func (c *ChainConfig) IsKotaro(num *big.Int) bool {
 	return isForked(c.KotaroBlock, num)
 }
 
+// IsKotaro returns whether the num is equals to or larger than the kotaro fork block.
+func (c *ChainConfig) IsMigration(num *big.Int) bool {
+	return isForked(c.MigrationBlock, num)
+}
+
 // CheckCompatible checks whether scheduled fork transitions have been imported
 // with a mismatching chain configuration.
 func (c *ChainConfig) CheckCompatible(newcfg *ChainConfig, height uint64) *ConfigCompatError {
@@ -1118,6 +1124,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	}
 	if isForkIncompatible(c.KotaroBlock, newcfg.KotaroBlock, head) {
 		return newCompatError("Kotaro fork block", c.KotaroBlock, newcfg.KotaroBlock)
+	}
+	if isForkIncompatible(c.MigrationBlock, newcfg.MigrationBlock, head) {
+		return newCompatError("Migration fork block", c.MigrationBlock, newcfg.MigrationBlock)
 	}
 	return nil
 }

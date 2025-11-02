@@ -9,7 +9,9 @@ RUN cd /opt && make ronin
 # Pull Geth into a second stage deploy alpine container
 FROM alpine:3.21@sha256:21dc6063fd678b478f57c0e13f47560d0ea4eeba26dfc947b2a4f81f686b9f45
 
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates && \
+     addgroup -S ronin && adduser -S -G ronin ronin
+
 WORKDIR "/opt"
 
 ENV PASSWORD=''
@@ -34,6 +36,11 @@ ENV GENERATE_BLS_PROOF='false'
 COPY --from=builder /opt/build/bin/ronin /usr/local/bin/ronin
 COPY --from=builder /opt/genesis/ ./
 COPY --from=builder /opt/docker/chainnode/entrypoint.sh ./
+
+# Ensure files are owned by the non-root user and entrypoint is executable
+RUN chown -R ronin:ronin /opt /usr/local/bin/ronin && chmod +x /usr/local/bin/ronin ./entrypoint.sh
+
+USER ronin
 
 EXPOSE 7000 6060 8545 8546 30303 30303/udp
 

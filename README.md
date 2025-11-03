@@ -37,7 +37,7 @@ Running a full Ronin node:
 - CPU: Equivalent of 8 AWS vCPU
 - RAM: 16GB
 - Storage: At least 1 TB high-speed SSD
-- Network: Reliable IPv4 or IPv6 network connection, with an open public port
+- Network: Reliable IPv4 or IPv6 network connection with an open public port
 
 Running an archive Ronin node:
 - CPU: Equivalent of 8 AWS vCPU

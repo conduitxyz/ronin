@@ -735,7 +735,7 @@ var (
 	}
 	HTTPPathPrefixFlag = &cli.StringFlag{
 		Name:     "http.rpcprefix",
-		Usage:    "HTTP path path prefix on which JSON-RPC is served. Use '/' to serve on all paths.",
+		Usage:    "HTTP path prefix on which JSON-RPC is served. Use '/' to serve on all paths.",
 		Value:    "",
 		Category: flags.APICategory,
 	}
@@ -1169,7 +1169,7 @@ func MakeDataDir(ctx *cli.Context) string {
 
 // setNodeKey creates a node key from set command line flags, either loading it
 // from a file or as a specified hex value. If neither flags were provided, this
-// method returns nil and an emphemeral key is to be generated.
+// method returns nil and an ephemeral key is to be generated.
 func setNodeKey(ctx *cli.Context, cfg *p2p.Config) {
 	var (
 		hex  = ctx.String(NodeKeyHexFlag.Name)
@@ -1208,7 +1208,7 @@ func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
 	case ctx.IsSet(BootnodesFlag.Name):
 		urls = SplitAndTrim(ctx.String(BootnodesFlag.Name))
 	case ctx.Bool(MainnetFlag.Name):
-		urls = params.EtherumMainnetBootnodes
+		urls = params.EthereumMainnetBootnodes
 	case ctx.Bool(RopstenFlag.Name):
 		urls = params.RopstenBootnodes
 	case ctx.Bool(SepoliaFlag.Name):

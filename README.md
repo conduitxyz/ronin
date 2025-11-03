@@ -1,9 +1,9 @@
 ## Go Ronin
 
-Official Golang execution layer implementation of the Ronin protocol. It is a fork of Go Ethereum -
-[https://github.com/ethereum/go-ethereum](https://github.com/ethereum/go-ethereum) and EVM compatible.
+Official Golang execution layer implementation of the Ronin protocol. It is a fork of Go Ethereum –
+[https://github.com/ethereum/go-ethereum](https://github.com/ethereum/go-ethereum) – and is EVM compatible.
 
-Ronin consensus currently uses Delegated Proof of Stake mechanism, allowing anyone to become validator.
+Ronin consensus currently uses a Delegated Proof of Stake mechanism, allowing anyone to become a validator.
 
 Check out the [whitepaper](https://docs.roninchain.com/basics/white-paper) for more information.
 
@@ -11,43 +11,45 @@ Check out the [whitepaper](https://docs.roninchain.com/basics/white-paper) for m
 
 ## Executables
 
-The go-ethereum project comes with several wrappers/executables found in the `cmd`
+The Go Ethereum project comes with several wrappers/executables found in the `cmd`
 directory.
 
-|    Command    | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| :-----------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-|  **`ronin`**   | Our main Ronin CLI client. It is the entry point into the Ronin network (main-, test- or private net), capable of running as a full node (default), archive node (retaining all historical state) or a light node (retrieving data live). It can be used by other processes as a gateway into the Ronin network via JSON RPC endpoints exposed on top of HTTP, WebSocket and/or IPC transports. `ronin --help` and the [CLI page](https://geth.ethereum.org/docs/interface/command-line-options) for command line options.          |
-|   `clef`    | Stand-alone signing tool, which can be used as a backend signer for `ronin`.  |
-|   `devp2p`    | Utilities to interact with nodes on the networking layer, without running a full blockchain. |
-|   `abigen`    | Source code generator to convert Ethereum contract definitions into easy to use, compile-time type-safe Go packages. It operates on plain [Ethereum contract ABIs](https://docs.soliditylang.org/en/develop/abi-spec.html) with expanded functionality if the contract bytecode is also available. However, it also accepts Solidity source files, making development much more streamlined. Please see our [Native DApps](https://geth.ethereum.org/docs/dapp/native-bindings) page for details. |
-|  `bootnode`   | Stripped down version of our Ethereum client implementation that only takes part in the network node discovery protocol, but does not run any of the higher level application protocols. It can be used as a lightweight bootstrap node to aid in finding peers in private networks.                                                                                                                                                                                                                                                                 |
-|     `evm`     | Developer utility version of the EVM (Ethereum Virtual Machine) that is capable of running bytecode snippets within a configurable environment and execution mode. Its purpose is to allow isolated, fine-grained debugging of EVM opcodes (e.g. `evm --code 60ff60ff --debug run`).                                                                                                                                                                                                                                                                     |
-|   `rlpdump`   | Developer utility tool to convert binary RLP ([Recursive Length Prefix](https://eth.wiki/en/fundamentals/rlp)) dumps (data encoding used by the Ethereum protocol both network as well as consensus wise) to user-friendlier hierarchical representation (e.g. `rlpdump --hex CE0183FFFFFFC4C304050583616263`).                                                                                                                                                                                                                                 |
-|   `puppeth`   | a CLI wizard that aids in creating a new Ethereum network.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Command | Description |
+| :------ | :----------- |
+| **`ronin`** | The main Ronin CLI client. It is the entry point into the Ronin network (main, test, or private net), capable of running as a full node (default), an archive node (retaining all historical state), or a light node (retrieving data live). It can be used by other processes as a gateway into the Ronin network via JSON-RPC endpoints exposed over HTTP, WebSocket, and/or IPC transports. Run `ronin --help` and check the [CLI page](https://geth.ethereum.org/docs/interface/command-line-options) for available options. |
+| `clef` | Standalone signing tool, which can be used as a backend signer for `ronin`. |
+| `devp2p` | Utilities to interact with nodes on the networking layer without running a full blockchain. |
+| `abigen` | Source code generator that converts Ethereum contract definitions into easy-to-use, compile-time type-safe Go packages. It operates on plain [Ethereum contract ABIs](https://docs.soliditylang.org/en/develop/abi-spec.html), with expanded functionality if the contract bytecode is also available. It also accepts Solidity source files, making development much more streamlined. See our [Native DApps](https://geth.ethereum.org/docs/dapp/native-bindings) page for details. |
+| `bootnode` | A stripped-down version of the Ethereum client implementation that only participates in the network node discovery protocol but does not run any higher-level application protocols. It can be used as a lightweight bootstrap node to help find peers in private networks. |
+| `evm` | Developer utility version of the EVM (Ethereum Virtual Machine) capable of running bytecode snippets within a configurable environment and execution mode. Useful for isolated, fine-grained debugging of EVM opcodes (e.g. `evm --code 60ff60ff --debug run`). |
+| `rlpdump` | Developer tool to convert binary RLP ([Recursive Length Prefix](https://eth.wiki/en/fundamentals/rlp)) dumps (data encoding used by the Ethereum protocol for both networking and consensus) into a more readable hierarchical representation (e.g. `rlpdump --hex CE0183FFFFFFC4C304050583616263`). |
+| `puppeth` | A CLI wizard that helps create a new Ethereum network. |
 
 ## Running `ronin`
 
-Going through all the possible command line flags is out of scope here (please consult our
+Going through all possible command-line flags is out of scope here (please consult our
 [CLI Wiki page](https://geth.ethereum.org/docs/interface/command-line-options)),
-but we've enumerated a few common parameter combos to get you up to speed quickly
-on how you can run your own `geth` instance.
+but we've listed a few common parameter combinations to help you quickly
+run your own `ronin` instance.
 
 ### Requirements
+
 Running a full Ronin node:
-- CPU: Equivalent of 8 AWS vCPU
-- RAM: 16GB
-- Storage: At least 1 TB high-speed SSD
-- Network: Reliable IPv4 or IPv6 network connection, with an open public port
+- CPU: Equivalent of 8 AWS vCPUs  
+- RAM: 16 GB  
+- Storage: At least 1 TB high-speed SSD  
+- Network: Reliable IPv4 or IPv6 connection with an open public port  
 
 Running an archive Ronin node:
-- CPU: Equivalent of 8 AWS vCPU
-- RAM: 16GB
-- Storage: At least 5 TB high-speed SSD
-- Network: Reliable IPv4 or IPv6 network connection, with an open public port
+- CPU: Equivalent of 8 AWS vCPUs  
+- RAM: 16 GB  
+- Storage: At least 5 TB high-speed SSD  
+- Network: Reliable IPv4 or IPv6 connection with an open public port  
 
-### Building the source
-Building `ronin` requires both a Go (version 1.17 or later) and a C compiler. You can install
-them using your favourite package manager. Once the dependencies are installed, run
+### Building from source
+
+Building `ronin` requires both Go (version 1.17 or later) and a C compiler. You can install
+them using your favorite package manager. Once the dependencies are installed, run:
 
 ```shell
 make ronin
@@ -59,120 +61,112 @@ or, to build the full suite of utilities:
 make all
 ```
 
-### Init genesis
+### Initializing genesis
 
-Before running a full node, init genesis block is necessary
+Before running a full node, you must initialize the genesis block:
+
 ```shell
 ronin init --datadir /opt/ronin genesis/mainnet.json
 ```
 
-### Full node on the main Ronin network
-
+### Running a full node on the main Ronin network
 
 ```shell
-$ ronin --http.api eth,net,web3,consortium --networkid 2020 --discovery.dns enrtree://AIGOFYDZH6BGVVALVJLRPHSOYJ434MPFVVQFXJDXHW5ZYORPTGKUI@nodes.roninchain.com --datadir /opt/ronin --port 30303 --http --http.corsdomain '*' --http.addr 0.0.0.0 --http.port 8545 --http.vhosts '*' --ws --ws.addr 0.0.0.0 --ws.port 8546 --ws.origins '*' 
+ronin --http.api eth,net,web3,consortium --networkid 2020 --discovery.dns enrtree://AIGOFYDZH6BGVVALVJLRPHSOYJ434MPFVVQFXJDXHW5ZYORPTGKUI@nodes.roninchain.com --datadir /opt/ronin --port 30303 --http --http.corsdomain '*' --http.addr 0.0.0.0 --http.port 8545 --http.vhosts '*' --ws --ws.addr 0.0.0.0 --ws.port 8546 --ws.origins '*'
 ```
 
 This command will:
 * Start `ronin` in full sync mode (default, can be changed with the `--syncmode` flag),
   causing it to download more data in exchange for avoiding processing the entire history
-  of the Ronin network, which is very CPU intensive.
+  of the Ronin network, which is very CPU-intensive.
 
 ### Configuration
 
-As an alternative to passing the numerous flags to the `ronin` binary, you can also pass a
-configuration file via:
+Instead of passing multiple flags to the `ronin` binary, you can also use a configuration file:
 
 ```shell
-$ ronin --config /path/to/your_config.toml
+ronin --config /path/to/your_config.toml
 ```
 
-To get an idea of how the file should look like you can use the `dumpconfig` subcommand to
-export your existing configuration:
+To generate a reference configuration file, use the `dumpconfig` subcommand:
 
 ```shell
-$ ronin --your-favourite-flags dumpconfig
+ronin --your-favourite-flags dumpconfig
 ```
 
-### Programmatically interfacing `ronin` nodes
+### Programmatic access to `ronin` nodes
 
-As a developer, sooner rather than later you'll want to start interacting with `ronin` and the
-Ronin network via your own programs and not manually through the console. To aid
-this, `ronin` has built-in support for a JSON-RPC based APIs which are the same as Ethereum that can be found at ([standard APIs](https://eth.wiki/json-rpc/API)
-and [`ronin` specific APIs](https://geth.ethereum.org/docs/rpc/server)).
-These can be exposed via HTTP, WebSockets and IPC (UNIX sockets on UNIX based
-platforms, and named pipes on Windows).
+As a developer, you’ll likely want to interact with `ronin` and the Ronin network
+programmatically rather than manually via the console.  
+`ronin` has built-in support for JSON-RPC-based APIs identical to Ethereum’s:
+([standard APIs](https://eth.wiki/json-rpc/API) and [`ronin`-specific APIs](https://geth.ethereum.org/docs/rpc/server)).
+These can be exposed via HTTP, WebSocket, or IPC (UNIX sockets on UNIX-based systems,
+and named pipes on Windows).
 
-The IPC interface is enabled by default and exposes all the APIs supported by `ronin`,
-whereas the HTTP and WS interfaces need to manually be enabled and only expose a
-subset of APIs due to security reasons. These can be turned on/off and configured as
-you'd expect.
+The IPC interface is enabled by default and exposes all APIs supported by `ronin`,  
+while HTTP and WS interfaces must be manually enabled for security reasons.  
 
-HTTP based JSON-RPC API options:
+HTTP-based JSON-RPC API options:
 
-* `--http` Enable the HTTP-RPC server
-* `--http.addr` HTTP-RPC server listening interface (default: `localhost`)
-* `--http.port` HTTP-RPC server listening port (default: `8545`)
-* `--http.api` API's offered over the HTTP-RPC interface (default: `eth,net,web3`)
-* `--http.corsdomain` Comma separated list of domains from which to accept cross origin requests (browser enforced)
-* `--ws` Enable the WS-RPC server
-* `--ws.addr` WS-RPC server listening interface (default: `localhost`)
-* `--ws.port` WS-RPC server listening port (default: `8546`)
-* `--ws.api` API's offered over the WS-RPC interface (default: `eth,net,web3`)
-* `--ws.origins` Origins from which to accept websockets requests
-* `--ipcdisable` Disable the IPC-RPC server
-* `--ipcapi` API's offered over the IPC-RPC interface (default: `admin,debug,eth,miner,net,personal,shh,txpool,web3`)
-* `--ipcpath` Filename for IPC socket/pipe within the datadir (explicit paths escape it)
+* `--http` Enable the HTTP-RPC server  
+* `--http.addr` HTTP-RPC listening interface (default: `localhost`)  
+* `--http.port` HTTP-RPC listening port (default: `8545`)  
+* `--http.api` APIs exposed via HTTP-RPC (default: `eth,net,web3`)  
+* `--http.corsdomain` Comma-separated list of domains allowed for cross-origin requests  
+* `--ws` Enable the WebSocket-RPC server  
+* `--ws.addr` WebSocket-RPC listening interface (default: `localhost`)  
+* `--ws.port` WebSocket-RPC listening port (default: `8546`)  
+* `--ws.api` APIs exposed via WebSocket-RPC (default: `eth,net,web3`)  
+* `--ws.origins` Origins allowed to connect via WebSocket  
+* `--ipcdisable` Disable the IPC-RPC server  
+* `--ipcapi` APIs exposed via IPC-RPC (default: `admin,debug,eth,miner,net,personal,shh,txpool,web3`)  
+* `--ipcpath` Filename for the IPC socket/pipe within the datadir  
 
-You'll need to use your own programming environments' capabilities (libraries, tools, etc) to
-connect via HTTP, WS or IPC to a `geth` node configured with the above flags and you'll
-need to speak [JSON-RPC](https://www.jsonrpc.org/specification) on all transports. You
-can reuse the same connection for multiple requests!
+You’ll need to use your programming environment’s libraries or tools to connect
+via HTTP, WS, or IPC to a `ronin` node configured with the above flags.  
+All transports use the [JSON-RPC](https://www.jsonrpc.org/specification) protocol.
 
-**Note: Please understand the security implications of opening up an HTTP/WS based
-transport before doing so! Hackers on the internet are actively trying to subvert
-Ethereum nodes with exposed APIs! Further, all browser tabs can access locally
-running web servers, so malicious web pages could try to subvert locally available
-APIs!**
+**Note:** Be aware of the security implications of exposing HTTP/WS transports.
+Hackers actively scan the internet for open Ethereum-compatible RPCs.  
+Locally running browsers can also access these, which may lead to unwanted access.
 
 ## How to contribute
 
 ### Contribution guidelines
-- Quality: Code in the Ronin project should meet the style guidelines, with sufficient test-cases, descriptive commit
-  messages, evidence that the contribution does not break any compatibility commitments or cause adverse feature
-  interactions, and evidence of high-quality peer-review.
-- Size: The Ronin project's culture is one of small pull-requests, regularly submitted. The larger a pull-request,
-  the more likely it is that you will be asked to resubmit as a series of self-contained and individually reviewable
-  smaller PRs.
-- Maintainability: If the feature will require ongoing maintenance (eg support for a particular branch of database),
-  we may ask you to accept responsibility for maintaining this feature
-- Commit message: Commit messages of Ronin project follows [https://www.conventionalcommits.org/en/v1.0.0/](https://www.conventionalcommits.org/en/v1.0.0/)
 
-### Submit an issue
-- Create a new issue
-- Comment on the issue (if you'd like to be assigned to it) - that way our team can assign the issue to you
-- If you do not have a specific contribution in mind, you can also browse the issues labelled as `help wanted`
-- Issues that additionally have the `good first issue` label are considered ideal for first-timers
+- **Quality:** Code must follow style guidelines, include adequate test cases and descriptive commit messages, and ensure no compatibility issues or regressions.  
+- **Size:** Prefer small, regular pull requests. Large PRs may be requested to be split into smaller, reviewable chunks.  
+- **Maintainability:** If your feature requires ongoing maintenance (e.g., support for a specific database), you may be asked to maintain it.  
+- **Commit messages:** Follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).  
 
-### Submit your PR
-- After your changes are committed to your GitHub fork, submit a pull request (PR) to the `master` branch of the
-  axieinfinity/ronin repo
-- In your PR description, reference the issue it resolves (see [linking a pull request to an issue using a keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword))
-   - ex: `[FIXES #123] feat: update out of date content`
+### Submitting an issue
 
-### Wait for review
-- The team reviews every PR
-- Acceptable PRs will be approved & merged into the `master` branch
+- Create a new issue.  
+- Comment if you’d like to be assigned.  
+- Browse issues labeled `help wanted` or `good first issue` for suitable starting points.  
 
-### Release
-- You can [view the history of release](https://github.com/axieinfinity/ronin/releases), which include PR highlights
+### Submitting a PR
+
+- Push your changes to your GitHub fork and submit a pull request (PR) to the `master` branch of the
+  `axieinfinity/ronin` repository.  
+- In your PR description, reference the related issue (see [linking a pull request to an issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue-using-a-keyword)).  
+  Example: `[FIXES #123] feat: update outdated content`  
+
+### Review process
+
+- The team reviews every PR.  
+- Accepted PRs are approved and merged into the `master` branch.  
+
+### Releases
+
+- View the [release history](https://github.com/axieinfinity/ronin/releases) for highlights and details.
 
 ## License
 
-The go-ethereum library (i.e. all code outside of the `cmd` directory) is licensed under the
+The Go Ethereum library (i.e., all code outside the `cmd` directory) is licensed under the
 [GNU Lesser General Public License v3.0](https://www.gnu.org/licenses/lgpl-3.0.en.html),
-also included in our repository in the `COPYING.LESSER` file.
+also included in the repository as `COPYING.LESSER`.
 
-The go-ethereum binaries (i.e. all code inside of the `cmd` directory) is licensed under the
-[GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.en.html), also
-included in our repository in the `COPYING` file.
+The Go Ethereum binaries (i.e., all code inside the `cmd` directory) are licensed under the
+[GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.en.html),
+included as `COPYING`.

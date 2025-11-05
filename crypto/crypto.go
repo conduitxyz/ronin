@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"hash"
 	"io"
-	"io/ioutil"
 	"math/big"
 	"os"
 
@@ -36,13 +35,13 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-//SignatureLength indicates the byte length required to carry a signature with recovery id.
+// SignatureLength indicates the byte length required to carry a signature with recovery id.
 const SignatureLength = 64 + 1 // 64 bytes ECDSA signature + 1 byte recovery id
 
 // RecoveryIDOffset points to the byte offset within the signature that contains the recovery id.
 const RecoveryIDOffset = 64
 
-// DigestLength sets the signature digest exact length
+// DigestLength sets the signature digest exact length.
 const DigestLength = 32
 
 var (
@@ -60,57 +59,57 @@ type KeccakState interface {
 	Read([]byte) (int, error)
 }
 
-// NewKeccakState creates a new KeccakState
+// NewKeccakState creates a new KeccakState.
 func NewKeccakState() KeccakState {
 	return sha3.NewLegacyKeccak256().(KeccakState)
 }
 
-// HashData hashes the provided data using the KeccakState and returns a 32 byte hash
+// HashData hashes the provided data using the KeccakState and returns a 32-byte hash.
 func HashData(kh KeccakState, data []byte) (h common.Hash) {
 	kh.Reset()
-	kh.Write(data)
-	kh.Read(h[:])
+	_, _ = kh.Write(data)
+	_, _ = kh.Read(h[:])
 	return h
 }
 
 // Keccak256 calculates and returns the Keccak256 hash of the input data.
 func Keccak256(data ...[]byte) []byte {
-	b := make([]byte, 32)
+	out := make([]byte, 32)
 	d := NewKeccakState()
-	for _, b := range data {
-		d.Write(b)
+	for _, chunk := range data {
+		_, _ = d.Write(chunk)
 	}
-	d.Read(b)
-	return b
+	_, _ = d.Read(out)
+	return out
 }
 
 // Keccak256Hash calculates and returns the Keccak256 hash of the input data,
 // converting it to an internal Hash data structure.
 func Keccak256Hash(data ...[]byte) (h common.Hash) {
 	d := NewKeccakState()
-	for _, b := range data {
-		d.Write(b)
+	for _, chunk := range data {
+		_, _ = d.Write(chunk)
 	}
-	d.Read(h[:])
+	_, _ = d.Read(h[:])
 	return h
 }
 
 // Keccak512 calculates and returns the Keccak512 hash of the input data.
 func Keccak512(data ...[]byte) []byte {
 	d := sha3.NewLegacyKeccak512()
-	for _, b := range data {
-		d.Write(b)
+	for _, chunk := range data {
+		_, _ = d.Write(chunk)
 	}
 	return d.Sum(nil)
 }
 
-// CreateAddress creates an ethereum address given the bytes and the nonce
+// CreateAddress creates an Ethereum address given the bytes and the nonce.
 func CreateAddress(b common.Address, nonce uint64) common.Address {
 	data, _ := rlp.EncodeToBytes([]interface{}{b, nonce})
 	return common.BytesToAddress(Keccak256(data)[12:])
 }
 
-// CreateAddress2 creates an ethereum address given the address bytes, initial
+// CreateAddress2 creates an Ethereum address given the address bytes, initial
 // contract code hash and a salt.
 func CreateAddress2(b common.Address, salt [32]byte, inithash []byte) common.Address {
 	return common.BytesToAddress(Keccak256([]byte{0xff}, b.Bytes(), salt[:], inithash)[12:])
@@ -173,6 +172,7 @@ func UnmarshalPubkey(pub []byte) (*ecdsa.PublicKey, error) {
 	return &ecdsa.PublicKey{Curve: S256(), X: x, Y: y}, nil
 }
 
+// FromECDSAPub exports a public key as uncompressed bytes.
 func FromECDSAPub(pub *ecdsa.PublicKey) []byte {
 	if pub == nil || pub.X == nil || pub.Y == nil {
 		return nil
@@ -180,7 +180,7 @@ func FromECDSAPub(pub *ecdsa.PublicKey) []byte {
 	return elliptic.Marshal(S256(), pub.X, pub.Y)
 }
 
-// HexToECDSA parses a secp256k1 private key.
+// HexToECDSA parses a secp256k1 private key from hex.
 func HexToECDSA(hexkey string) (*ecdsa.PrivateKey, error) {
 	b, err := hex.DecodeString(hexkey)
 	if byteErr, ok := err.(hex.InvalidByteError); ok {
@@ -250,7 +250,8 @@ func checkKeyFileEnd(r *bufio.Reader) error {
 // restrictive permissions. The key data is saved hex-encoded.
 func SaveECDSA(file string, key *ecdsa.PrivateKey) error {
 	k := hex.EncodeToString(FromECDSA(key))
-	return ioutil.WriteFile(file, []byte(k), 0600)
+	// ioutil.WriteFile is deprecated; use os.WriteFile instead.
+	return os.WriteFile(file, []byte(k), 0o600)
 }
 
 // GenerateKey generates a new private key.
@@ -264,20 +265,22 @@ func ValidateSignatureValues(v byte, r, s *big.Int, homestead bool) bool {
 	if r.Cmp(common.Big1) < 0 || s.Cmp(common.Big1) < 0 {
 		return false
 	}
-	// reject upper range of s values (ECDSA malleability)
-	// see discussion in secp256k1/libsecp256k1/include/secp256k1.h
+	// Reject upper range of s values (ECDSA malleability).
+	// See discussion in secp256k1/libsecp256k1/include/secp256k1.h
 	if homestead && s.Cmp(secp256k1halfN) > 0 {
 		return false
 	}
-	// Frontier: allow s to be in full N range
+	// Frontier: allow s to be in full N range.
 	return r.Cmp(secp256k1N) < 0 && s.Cmp(secp256k1N) < 0 && (v == 0 || v == 1)
 }
 
+// PubkeyToAddress converts a public key to the corresponding Ethereum address.
 func PubkeyToAddress(p ecdsa.PublicKey) common.Address {
 	pubBytes := FromECDSAPub(&p)
 	return common.BytesToAddress(Keccak256(pubBytes[1:])[12:])
 }
 
+// zeroBytes overwrites a byte slice with zeros.
 func zeroBytes(bytes []byte) {
 	for i := range bytes {
 		bytes[i] = 0

@@ -17,6 +17,9 @@ contract CheckpointOracle {
         Public Functions
     */
     constructor(address[] memory _adminlist, uint _sectionSize, uint _processConfirms, uint _threshold) public {
+        // Basic sanity checks to avoid misconfiguration
+        require(_adminlist.length > 0, "CheckpointOracle: admin list empty");
+        require(_threshold > 0 && _threshold <= _adminlist.length, "CheckpointOracle: invalid threshold");
         for (uint i = 0; i < _adminlist.length; i++) {
             admins[_adminlist[i]] = true;
             adminList.push(_adminlist[i]);

@@ -21,6 +21,7 @@ package geth
 
 import (
 	"errors"
+	"math/big" // big.Int için içe aktarıldı (Sadece KeyStore metotlarında dahili olarak kullanılır)
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts"
@@ -59,7 +60,8 @@ func (a *Accounts) Size() int {
 }
 
 // Get returns the account at the given index from the slice.
-func (a *Accounts) Get(index int) (account *Account, _ error) {
+// İyileştirme: Hata dönüş değişkeni adı düzeltildi (Go idiomu için).
+func (a *Accounts) Get(index int) (account *Account, err error) {
 	if index < 0 || index >= len(a.accounts) {
 		return nil, errors.New("index out of bounds")
 	}
@@ -111,16 +113,23 @@ func (ks *KeyStore) DeleteAccount(account *Account, passphrase string) error {
 
 // SignHash calculates a ECDSA signature for the given hash. The produced signature
 // is in the [R || S || V] format where V is 0 or 1.
-func (ks *KeyStore) SignHash(address *Address, hash []byte) (signature []byte, _ error) {
+func (ks *KeyStore) SignHash(address *Address, hash []byte) (signature []byte, err error) {
+	// İyileştirme: Hata dönüş değişkeni adı düzeltildi.
 	return ks.keystore.SignHash(accounts.Account{Address: address.address}, common.CopyBytes(hash))
 }
 
 // SignTx signs the given transaction with the requested account.
 func (ks *KeyStore) SignTx(account *Account, tx *Transaction, chainID *BigInt) (*Transaction, error) {
-	if chainID == nil { // Null passed from mobile app
-		chainID = new(BigInt)
+	var id *big.Int
+	// İyileştirme: Mobil taraftan nil gelirse, çekirdek SignTx'e nil göndermek daha uygun olabilir.
+	// Orijinal kodun 0'a zorlama mantığı (chainID == nil) tutuldu, ancak sadeleştirildi.
+	if chainID != nil {
+		id = chainID.bigint
+	} else {
+		id = big.NewInt(0) // Orijinal nil -> new(BigInt) mantığına uygun olarak 0'a ayarla
 	}
-	signed, err := ks.keystore.SignTx(account.account, tx.tx, chainID.bigint)
+	
+	signed, err := ks.keystore.SignTx(account.account, tx.tx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -130,17 +139,23 @@ func (ks *KeyStore) SignTx(account *Account, tx *Transaction, chainID *BigInt) (
 // SignHashPassphrase signs hash if the private key matching the given address can
 // be decrypted with the given passphrase. The produced signature is in the
 // [R || S || V] format where V is 0 or 1.
-func (ks *KeyStore) SignHashPassphrase(account *Account, passphrase string, hash []byte) (signature []byte, _ error) {
+func (ks *KeyStore) SignHashPassphrase(account *Account, passphrase string, hash []byte) (signature []byte, err error) {
+	// İyileştirme: Hata dönüş değişkeni adı düzeltildi.
 	return ks.keystore.SignHashWithPassphrase(account.account, passphrase, common.CopyBytes(hash))
 }
 
 // SignTxPassphrase signs the transaction if the private key matching the
 // given address can be decrypted with the given passphrase.
 func (ks *KeyStore) SignTxPassphrase(account *Account, passphrase string, tx *Transaction, chainID *BigInt) (*Transaction, error) {
-	if chainID == nil { // Null passed from mobile app
-		chainID = new(BigInt)
+	var id *big.Int
+	// İyileştirme: SignTx'teki sadeleştirme burada da uygulandı.
+	if chainID != nil {
+		id = chainID.bigint
+	} else {
+		id = big.NewInt(0) // Orijinal nil -> new(BigInt) mantığına uygun olarak 0'a ayarla
 	}
-	signed, err := ks.keystore.SignTxWithPassphrase(account.account, passphrase, tx.tx, chainID.bigint)
+
+	signed, err := ks.keystore.SignTxWithPassphrase(account.account, passphrase, tx.tx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -184,12 +199,14 @@ func (ks *KeyStore) UpdateAccount(account *Account, passphrase, newPassphrase st
 }
 
 // ExportKey exports as a JSON key, encrypted with newPassphrase.
-func (ks *KeyStore) ExportKey(account *Account, passphrase, newPassphrase string) (key []byte, _ error) {
+func (ks *KeyStore) ExportKey(account *Account, passphrase, newPassphrase string) (key []byte, err error) {
+	// İyileştirme: Hata dönüş değişkeni adı düzeltildi.
 	return ks.keystore.Export(account.account, passphrase, newPassphrase)
 }
 
 // ImportKey stores the given encrypted JSON key into the key directory.
-func (ks *KeyStore) ImportKey(keyJSON []byte, passphrase, newPassphrase string) (account *Account, _ error) {
+func (ks *KeyStore) ImportKey(keyJSON []byte, passphrase, newPassphrase string) (account *Account, err error) {
+	// İyileştirme: Hata dönüş değişkeni adı düzeltildi.
 	acc, err := ks.keystore.Import(common.CopyBytes(keyJSON), passphrase, newPassphrase)
 	if err != nil {
 		return nil, err
@@ -198,7 +215,8 @@ func (ks *KeyStore) ImportKey(keyJSON []byte, passphrase, newPassphrase string) 
 }
 
 // ImportECDSAKey stores the given encrypted JSON key into the key directory.
-func (ks *KeyStore) ImportECDSAKey(key []byte, passphrase string) (account *Account, _ error) {
+func (ks *KeyStore) ImportECDSAKey(key []byte, passphrase string) (account *Account, err error) {
+	// İyileştirme: Hata dönüş değişkeni adı düzeltildi.
 	privkey, err := crypto.ToECDSA(common.CopyBytes(key))
 	if err != nil {
 		return nil, err
@@ -212,10 +230,11 @@ func (ks *KeyStore) ImportECDSAKey(key []byte, passphrase string) (account *Acco
 
 // ImportPreSaleKey decrypts the given Ethereum presale wallet and stores
 // a key file in the key directory. The key file is encrypted with the same passphrase.
-func (ks *KeyStore) ImportPreSaleKey(keyJSON []byte, passphrase string) (ccount *Account, _ error) {
-	account, err := ks.keystore.ImportPreSaleKey(common.CopyBytes(keyJSON), passphrase)
+func (ks *KeyStore) ImportPreSaleKey(keyJSON []byte, passphrase string) (account *Account, err error) {
+	// İyileştirme: Hata dönüş değişkeni adı ve dönüş adı (ccount yerine account) düzeltildi.
+	acc, err := ks.keystore.ImportPreSaleKey(common.CopyBytes(keyJSON), passphrase)
 	if err != nil {
 		return nil, err
 	}
-	return &Account{account}, nil
+	return &Account{acc}, nil
 }

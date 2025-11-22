@@ -24,7 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 )
 
-// Iterator for disassembled EVM instructions
+// instructionIterator iterates over disassembled EVM instructions.
 type instructionIterator struct {
 	code    []byte
 	pc      uint64
@@ -32,6 +32,15 @@ type instructionIterator struct {
 	op      vm.OpCode
 	error   error
 	started bool
+}
+
+// operandSize returns the number of bytes consumed by the operand of op.
+// This handles the PUSH instructions (PUSH1 through PUSH32).
+func operandSize(op vm.OpCode) uint64 {
+	if op >= vm.PUSH1 && op <= vm.PUSH32 {
+		return uint64(op) - uint64(vm.PUSH1) + 1
+	}
+	return 0
 }
 
 // Create a new instruction iterator.
@@ -43,35 +52,41 @@ func NewInstructionIterator(code []byte) *instructionIterator {
 
 // Returns true if there is a next instruction and moves on.
 func (it *instructionIterator) Next() bool {
-	if it.error != nil || uint64(len(it.code)) <= it.pc {
+	if it.error != nil || it.pc >= uint64(len(it.code)) {
 		// We previously reached an error or the end.
 		return false
 	}
 
 	if it.started {
-		// Since the iteration has been already started we move to the next instruction.
+		// Advance PC past the previous opcode (1 byte) and its argument size (if any).
+		advance := uint64(1)
 		if it.arg != nil {
-			it.pc += uint64(len(it.arg))
+			advance += uint64(len(it.arg))
 		}
-		it.pc++
+		it.pc += advance
 	} else {
-		// We start the iteration from the first instruction.
+		// Start the iteration from the first instruction.
 		it.started = true
 	}
 
-	if uint64(len(it.code)) <= it.pc {
-		// We reached the end.
+	// Check for end of code after advancing/starting
+	if it.pc >= uint64(len(it.code)) {
 		return false
 	}
 
 	it.op = vm.OpCode(it.code[it.pc])
-	if it.op.IsPush() {
-		a := uint64(it.op) - uint64(vm.PUSH1) + 1
-		u := it.pc + 1 + a
-		if uint64(len(it.code)) <= it.pc || uint64(len(it.code)) < u {
-			it.error = fmt.Errorf("incomplete push instruction at %v", it.pc)
+	
+    argSize := operandSize(it.op)
+
+    if argSize > 0 {
+		u := it.pc + 1 + argSize
+		if u > uint64(len(it.code)) {
+			// Argument runs past the end of the code slice.
+			it.error = fmt.Errorf("incomplete push instruction at %05x: opcode %v requires %d bytes, but only %d available", 
+                                  it.pc, it.op, argSize, uint64(len(it.code)) - (it.pc + 1))
 			return false
 		}
+		// Read argument slice
 		it.arg = it.code[it.pc+1 : u]
 	} else {
 		it.arg = nil
@@ -109,6 +124,7 @@ func PrintDisassembled(code string) error {
 	it := NewInstructionIterator(script)
 	for it.Next() {
 		if it.Arg() != nil && 0 < len(it.Arg()) {
+			// Note: fmt.Printf uses 0x%x on []byte to print the hex string representation.
 			fmt.Printf("%05x: %v 0x%x\n", it.PC(), it.Op(), it.Arg())
 		} else {
 			fmt.Printf("%05x: %v\n", it.PC(), it.Op())

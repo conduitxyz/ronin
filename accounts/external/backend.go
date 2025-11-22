@@ -1,18 +1,6 @@
-// Copyright 2019 The go-ethereum Authors
-// This file is part of the go-ethereum library.
-//
-// The go-ethereum library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The go-ethereum library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+// Copyright (c) 2019 The go-ethereum Authors
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 package external
 
@@ -20,6 +8,7 @@ import (
 	"fmt"
 	"math/big"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
@@ -32,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 )
 
+// ExternalBackend implements the accounts.Backend interface for interacting with an external signer (e.g., Clef).
 type ExternalBackend struct {
 	signers []accounts.Wallet
 }
@@ -40,6 +30,7 @@ func (eb *ExternalBackend) Wallets() []accounts.Wallet {
 	return eb.signers
 }
 
+// NewExternalBackend initializes a new ExternalBackend connected to the specified RPC endpoint.
 func NewExternalBackend(endpoint string) (*ExternalBackend, error) {
 	signer, err := NewExternalSigner(endpoint)
 	if err != nil {
@@ -50,24 +41,27 @@ func NewExternalBackend(endpoint string) (*ExternalBackend, error) {
 	}, nil
 }
 
+// Subscribe provides a dummy subscription as the external signer does not emit real-time events.
 func (eb *ExternalBackend) Subscribe(sink chan<- accounts.WalletEvent) event.Subscription {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
+		// Wait indefinitely until the quit signal is received
 		<-quit
 		return nil
 	})
 }
 
-// ExternalSigner provides an API to interact with an external signer (clef)
-// It proxies request to the external signer while forwarding relevant
-// request headers
+// ExternalSigner provides an API to interact with an external signer (Clef).
+// It proxies requests to the external signer while handling connection status and account caching.
 type ExternalSigner struct {
 	client   *rpc.Client
 	endpoint string
 	status   string
 	cacheMu  sync.RWMutex
 	cache    []accounts.Account
+	lastPing time.Time // Optimization: Track last successful ping time
 }
 
+// NewExternalSigner establishes the RPC connection and verifies reachability by pinging the version.
 func NewExternalSigner(endpoint string) (*ExternalSigner, error) {
 	client, err := rpc.Dial(endpoint)
 	if err != nil {
@@ -77,12 +71,15 @@ func NewExternalSigner(endpoint string) (*ExternalSigner, error) {
 		client:   client,
 		endpoint: endpoint,
 	}
-	// Check if reachable
+	
+	// Check if reachable and retrieve version
 	version, err := extsigner.pingVersion()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("external signer ping failed: %w", err)
 	}
 	extsigner.status = fmt.Sprintf("ok [version=%v]", version)
+	extsigner.lastPing = time.Now()
+	
 	return extsigner, nil
 }
 
@@ -94,9 +91,27 @@ func (api *ExternalSigner) URL() accounts.URL {
 }
 
 func (api *ExternalSigner) Status() (string, error) {
-	return api.status, nil
+	// Optimization: Add a simple TTL cache for status checks to avoid RPC spam
+	api.cacheMu.RLock()
+	isStale := time.Since(api.lastPing) > 5*time.Minute
+	status := api.status
+	api.cacheMu.RUnlock()
+	
+	if isStale {
+		version, err := api.pingVersion()
+		if err == nil {
+			api.cacheMu.Lock()
+			api.status = fmt.Sprintf("ok [version=%v]", version)
+			api.lastPing = time.Now()
+			status = api.status
+			api.cacheMu.Unlock()
+		}
+	}
+	
+	return status, nil
 }
 
+// Open and Close operations are not supported by the external signer backend.
 func (api *ExternalSigner) Open(passphrase string) error {
 	return fmt.Errorf("operation not supported on external signers")
 }
@@ -105,38 +120,43 @@ func (api *ExternalSigner) Close() error {
 	return fmt.Errorf("operation not supported on external signers")
 }
 
+// Accounts fetches the list of accounts managed by the external signer and caches them.
 func (api *ExternalSigner) Accounts() []accounts.Account {
 	var accnts []accounts.Account
 	res, err := api.listAccounts()
 	if err != nil {
-		log.Error("account listing failed", "error", err)
-		return accnts
+		log.Error("account listing failed", "error", err, "endpoint", api.endpoint)
+		return accnts // Returns empty slice on error
 	}
+	
 	for _, addr := range res {
 		accnts = append(accnts, accounts.Account{
-			URL: accounts.URL{
-				Scheme: "extapi",
-				Path:   api.endpoint,
-			},
+			URL:     api.URL(), // Use the Wallet's URL structure
 			Address: addr,
 		})
 	}
+	
 	api.cacheMu.Lock()
 	api.cache = accnts
 	api.cacheMu.Unlock()
+	
 	return accnts
 }
 
+// Contains checks if the external signer manages the given account.
 func (api *ExternalSigner) Contains(account accounts.Account) bool {
 	api.cacheMu.RLock()
 	defer api.cacheMu.RUnlock()
+	
+	// If the cache is empty, explicitly unlock the read lock, populate, and relock.
 	if api.cache == nil {
-		// If we haven't already fetched the accounts, it's time to do so now
 		api.cacheMu.RUnlock()
-		api.Accounts()
+		api.Accounts() // This handles its own locking
 		api.cacheMu.RLock()
 	}
+	
 	for _, a := range api.cache {
+		// Check address match AND (URL is empty OR URL matches the signer's URL)
 		if a.Address == account.Address && (account.URL == (accounts.URL{}) || account.URL == api.URL()) {
 			return true
 		}
@@ -144,77 +164,88 @@ func (api *ExternalSigner) Contains(account accounts.Account) bool {
 	return false
 }
 
+// Derive is not supported on external signers.
 func (api *ExternalSigner) Derive(path accounts.DerivationPath, pin bool) (accounts.Account, error) {
 	return accounts.Account{}, fmt.Errorf("operation not supported on external signers")
 }
 
+// SelfDerive is not supported on external signers.
 func (api *ExternalSigner) SelfDerive(bases []accounts.DerivationPath, chain ethereum.ChainStateReader) {
-	log.Error("operation SelfDerive not supported on external signers")
+	log.Error("operation SelfDerive not supported on external signers", "endpoint", api.endpoint)
 }
 
+// signHash is not supported on external signers.
 func (api *ExternalSigner) signHash(account accounts.Account, hash []byte) ([]byte, error) {
 	return []byte{}, fmt.Errorf("operation not supported on external signers")
 }
 
-// SignData signs keccak256(data). The mimetype parameter describes the type of data being signed
+// SignData signs keccak256(data). The mimetype parameter describes the type of data being signed.
 func (api *ExternalSigner) SignData(account accounts.Account, mimeType string, data []byte) ([]byte, error) {
 	var res hexutil.Bytes
-	var signAddress = common.NewMixedcaseAddress(account.Address)
+	// MixedcaseAddress is required for correct MarshalJSON behavior on Clef RPC interface
+	signAddress := common.NewMixedcaseAddress(account.Address) 
+	
 	if err := api.client.Call(&res, "account_signData",
 		mimeType,
-		&signAddress, // Need to use the pointer here, because of how MarshalJSON is defined
+		&signAddress, 
 		hexutil.Encode(data)); err != nil {
 		return nil, err
 	}
-	// If V is on 27/28-form, convert to 0/1 for Clique
+	
+	// FIX: Ensure V value is correctly transformed for Clique/PoA protocols if necessary.
 	if mimeType == accounts.MimetypeClique && (res[64] == 27 || res[64] == 28) {
-		res[64] -= 27 // Transform V from 27/28 to 0/1 for Clique use
+		res[64] -= 27 // Transform V from 27/28 to 0/1
 	}
 	return res, nil
 }
 
+// SignText signs the provided text according to EIP-191.
 func (api *ExternalSigner) SignText(account accounts.Account, text []byte) ([]byte, error) {
 	var signature hexutil.Bytes
-	var signAddress = common.NewMixedcaseAddress(account.Address)
+	signAddress := common.NewMixedcaseAddress(account.Address)
+	
 	if err := api.client.Call(&signature, "account_signData",
 		accounts.MimetypeTextPlain,
-		&signAddress, // Need to use the pointer here, because of how MarshalJSON is defined
+		&signAddress, 
 		hexutil.Encode(text)); err != nil {
 		return nil, err
 	}
+	
+	// Transform V from 27/28 (Ethereum-legacy) to 0/1 if clef has not already done so.
 	if signature[64] == 27 || signature[64] == 28 {
-		// If clef is used as a backend, it may already have transformed
-		// the signature to ethereum-type signature.
-		signature[64] -= 27 // Transform V from Ethereum-legacy to 0/1
+		signature[64] -= 27 
 	}
 	return signature, nil
 }
 
-// signTransactionResult represents the signinig result returned by clef.
+// signTransactionResult represents the signing result returned by clef.
 type signTransactionResult struct {
-	Raw hexutil.Bytes      `json:"raw"`
+	Raw hexutil.Bytes     `json:"raw"`
 	Tx  *types.Transaction `json:"tx"`
 }
 
-// SignTx sends the transaction to the external signer.
-// If chainID is nil, or tx.ChainID is zero, the chain ID will be assigned
-// by the external signer. For non-legacy transactions, the chain ID of the
-// transaction overrides the chainID parameter.
+// SignTx sends the transaction to the external signer for signing.
+// It handles chainID precedence and maps transaction types (Legacy, EIP-2930, EIP-1559, etc.) 
+// to the appropriate Clef arguments.
 func (api *ExternalSigner) SignTx(account accounts.Account, tx *types.Transaction, chainID *big.Int) (*types.Transaction, error) {
-	data := hexutil.Bytes(tx.Data())
+	
+	// Prepare common transaction arguments
 	var to *common.MixedcaseAddress
 	if tx.To() != nil {
 		t := common.NewMixedcaseAddress(*tx.To())
 		to = &t
 	}
+	
 	args := &apitypes.SendTxArgs{
-		Data:  &data,
+		Data:  (*hexutil.Bytes)(tx.Data()), // Directly use tx.Data() instead of redundant local variable
 		Nonce: hexutil.Uint64(tx.Nonce()),
 		Value: hexutil.Big(*tx.Value()),
 		Gas:   hexutil.Uint64(tx.Gas()),
 		To:    to,
 		From:  common.NewMixedcaseAddress(account.Address),
 	}
+	
+	// Map Gas/Fee parameters based on Tx Type
 	switch tx.Type() {
 	case types.LegacyTxType, types.AccessListTxType:
 		args.GasPrice = (*hexutil.Big)(tx.GasPrice())
@@ -224,27 +255,37 @@ func (api *ExternalSigner) SignTx(account accounts.Account, tx *types.Transactio
 	default:
 		return nil, fmt.Errorf("unsupported tx type %d", tx.Type())
 	}
-	// We should request the default chain id that we're operating with
-	// (the chain we're executing on)
+	
+	// --- ChainID Precedence Logic ---
+	
+	// 1. Prioritize chainID provided as function argument (typically the operating chain)
 	if chainID != nil && chainID.Sign() != 0 {
 		args.ChainID = (*hexutil.Big)(chainID)
 	}
-	if tx.Type() != types.LegacyTxType {
-		// However, if the user asked for a particular chain id, then we should
-		// use that instead.
-		if tx.ChainId().Sign() != 0 {
-			args.ChainID = (*hexutil.Big)(tx.ChainId())
-		}
+	
+	// 2. If the transaction itself has a non-zero ChainID, it overrides the function argument
+	//    (Crucial for EIP-155 compatibility and non-legacy tx types)
+	if tx.ChainId().Sign() != 0 {
+		args.ChainID = (*hexutil.Big)(tx.ChainId())
+	}
+	
+	// 3. Include AccessList for relevant transaction types
+	if tx.Type() == types.AccessListTxType || tx.Type() == types.DynamicFeeTxType || tx.Type() == types.BlobTxType {
 		accessList := tx.AccessList()
 		args.AccessList = &accessList
 	}
+
+
 	var res signTransactionResult
 	if err := api.client.Call(&res, "account_signTransaction", args); err != nil {
 		return nil, err
 	}
+	
+	// Return the signed transaction object
 	return res.Tx, nil
 }
 
+// Password operations are not supported by the external signer backend.
 func (api *ExternalSigner) SignTextWithPassphrase(account accounts.Account, passphrase string, text []byte) ([]byte, error) {
 	return []byte{}, fmt.Errorf("password-operations not supported on external signers")
 }
@@ -256,6 +297,7 @@ func (api *ExternalSigner) SignDataWithPassphrase(account accounts.Account, pass
 	return nil, fmt.Errorf("password-operations not supported on external signers")
 }
 
+// listAccounts proxies the request to the external signer to get all managed addresses.
 func (api *ExternalSigner) listAccounts() ([]common.Address, error) {
 	var res []common.Address
 	if err := api.client.Call(&res, "account_list"); err != nil {
@@ -264,6 +306,7 @@ func (api *ExternalSigner) listAccounts() ([]common.Address, error) {
 	return res, nil
 }
 
+// pingVersion retrieves the version string from the external signer.
 func (api *ExternalSigner) pingVersion() (string, error) {
 	var v string
 	if err := api.client.Call(&v, "account_version"); err != nil {

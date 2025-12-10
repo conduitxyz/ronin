@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -99,7 +100,7 @@ func (d *IteratorDump) OnAccount(addr *common.Address, account DumpAccount) {
 
 // iterativeDump is a DumpCollector-implementation which dumps output line-by-line iteratively.
 type iterativeDump struct {
-	*json.Encoder
+	sonic.Encoder
 }
 
 // OnAccount implements DumpCollector interface
@@ -242,7 +243,7 @@ func (s *StateDB) Dump(opts *DumpConfig) []byte {
 }
 
 // IterativeDump dumps out accounts as json-objects, delimited by linebreaks on stdout
-func (s *StateDB) IterativeDump(opts *DumpConfig, output *json.Encoder) {
+func (s *StateDB) IterativeDump(opts *DumpConfig, output sonic.Encoder) {
 	s.DumpToCollector(iterativeDump{output}, opts)
 }
 

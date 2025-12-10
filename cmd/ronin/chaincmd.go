@@ -26,6 +26,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -485,7 +486,7 @@ func dump(ctx *cli.Context) error {
 		return err
 	}
 	if ctx.Bool(utils.IterativeOutputFlag.Name) {
-		state.IterativeDump(conf, json.NewEncoder(os.Stdout))
+		state.IterativeDump(conf, sonic.ConfigFastest.NewEncoder(os.Stdout))
 	} else {
 		if conf.OnlyWithAddresses {
 			fmt.Fprintf(os.Stderr, "If you want to include accounts with missing preimages, you need iterative output, since"+

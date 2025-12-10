@@ -17,6 +17,7 @@
 package state
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -37,6 +38,7 @@ type DumpConfig struct {
 	SkipStorage       bool
 	OnlyWithAddresses bool
 	Start             []byte
+	End               []byte
 	Max               uint64
 }
 
@@ -147,6 +149,9 @@ func (s *StateDB) DumpToCollector(c DumpCollector, conf *DumpConfig) (nextKey []
 	}
 	it := trie.NewIterator(trieIt)
 	for it.Next() {
+		if bytes.Compare(it.Key, conf.End) > 0 {
+			break
+		}
 		var data types.StateAccount
 		if err := rlp.DecodeBytes(it.Value, &data); err != nil {
 			panic(err)

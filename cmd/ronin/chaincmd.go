@@ -457,11 +457,25 @@ func parseDumpConfig(ctx *cli.Context, stack *node.Node) (*state.DumpConfig, eth
 	default:
 		return nil, nil, common.Hash{}, fmt.Errorf("invalid start argument: %x. 20 or 32 hex-encoded bytes required", startArg)
 	}
+
+	endArg := common.FromHex(ctx.String(utils.EndKeyFlag.Name))
+	var end common.Hash
+	switch len(endArg) {
+	case 0: // common.Hash
+	case 32:
+		end = common.BytesToHash(startArg)
+	case 20:
+		end = crypto.Keccak256Hash(startArg)
+		log.Info("Converting start-address to hash", "address", common.BytesToAddress(startArg), "hash", start.Hex())
+	default:
+		return nil, nil, common.Hash{}, fmt.Errorf("invalid start argument: %x. 20 or 32 hex-encoded bytes required", startArg)
+	}
 	var conf = &state.DumpConfig{
 		SkipCode:          ctx.Bool(utils.ExcludeCodeFlag.Name),
 		SkipStorage:       ctx.Bool(utils.ExcludeStorageFlag.Name),
 		OnlyWithAddresses: !ctx.Bool(utils.IncludeIncompletesFlag.Name),
 		Start:             start.Bytes(),
+		End:               end.Bytes(),
 		Max:               ctx.Uint64(utils.DumpLimitFlag.Name),
 	}
 	log.Info("State dump configured", "block", header.Number, "hash", header.Hash().Hex(),

@@ -212,6 +212,11 @@ var (
 		Usage: "Start position. Either a hash or address",
 		Value: "0x0000000000000000000000000000000000000000000000000000000000000000",
 	}
+	EndKeyFlag = &cli.StringFlag{
+		Name:  "end",
+		Usage: "End position. Either a hash or address",
+		Value: "0x0000000000000000000000000000000000000000000000000000000000000000",
+	}
 	DumpLimitFlag = &cli.Uint64Flag{
 		Name:  "limit",
 		Usage: "Max number of elements (0 = no limit)",

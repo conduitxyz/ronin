@@ -26,7 +26,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/bytedance/sonic"
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -192,6 +191,7 @@ It's deprecated, please use "geth db export" instead.
 			utils.StartKeyFlag,
 			utils.EndKeyFlag,
 			utils.DumpLimitFlag,
+			utils.OutPathPrefixFlag,
 		},
 		Category: "BLOCKCHAIN COMMANDS",
 		Description: `
@@ -478,6 +478,7 @@ func parseDumpConfig(ctx *cli.Context, stack *node.Node) (*state.DumpConfig, eth
 		Start:             start.Bytes(),
 		End:               end.Bytes(),
 		Max:               ctx.Uint64(utils.DumpLimitFlag.Name),
+		OutPathPrefix:     ctx.String(utils.OutPathPrefixFlag.Name),
 	}
 	log.Info("State dump configured", "block", header.Number, "hash", header.Hash().Hex(),
 		"skipcode", conf.SkipCode, "skipstorage", conf.SkipStorage,
@@ -501,7 +502,7 @@ func dump(ctx *cli.Context) error {
 		return err
 	}
 	if ctx.Bool(utils.IterativeOutputFlag.Name) {
-		state.IterativeDump(conf, sonic.ConfigFastest.NewEncoder(os.Stdout))
+		state.IterativeDump(conf)
 	} else {
 		if conf.OnlyWithAddresses {
 			fmt.Fprintf(os.Stderr, "If you want to include accounts with missing preimages, you need iterative output, since"+

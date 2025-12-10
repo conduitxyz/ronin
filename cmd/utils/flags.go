@@ -222,6 +222,11 @@ var (
 		Usage: "Max number of elements (0 = no limit)",
 		Value: 0,
 	}
+	OutPathPrefixFlag = &cli.StringFlag{
+		Name:  "outprefix",
+		Usage: "out path prefix",
+		Value: "/tmp/dump.jsonl",
+	}
 	defaultSyncMode = ethconfig.Defaults.SyncMode
 	SyncModeFlag    = &flags.TextMarshalerFlag{
 		Name:     "syncmode",

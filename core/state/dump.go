@@ -20,6 +20,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
+	"sync"
 	"time"
 
 	"github.com/bytedance/sonic"
@@ -40,6 +42,7 @@ type DumpConfig struct {
 	Start             []byte
 	End               []byte
 	Max               uint64
+	OutPathPrefix     string
 }
 
 // DumpCollector interface which the state trie calls during iteration
@@ -228,6 +231,155 @@ func (s *StateDB) DumpToCollector(c DumpCollector, conf *DumpConfig) (nextKey []
 	return nextKey
 }
 
+// DumpToCollector iterates the state according to the given options and inserts
+// the items into a collector for aggregation or serialization.
+func (s *StateDB) DumpToCollectorParallel(conf *DumpConfig) (nextKey []byte) {
+	// Sanitize the input to allow nil configs
+	if conf == nil {
+		conf = new(DumpConfig)
+	}
+	keys := [][]byte{
+		common.Address{}.Bytes(),
+		common.Hex2Bytes("0x1000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("0x2000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("0x3000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("0x4000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("0x5000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("0x6000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("0x7000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("0x8000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("0x9000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("0xa000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("0xb000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("0xc000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("0xd000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("0xe000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("0xf000000000000000000000000000000000000000000000000000000000000000"),
+	}
+
+	wg := sync.WaitGroup{}
+	for i, key := range keys {
+		wg.Add(1)
+		go func(i int, key []byte) {
+			defer func() {
+				wg.Done()
+			}()
+			f, err := os.OpenFile(conf.OutPathPrefix+fmt.Sprintf("_%d", i), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+			if err != nil {
+				panic(err)
+			}
+
+			c := iterativeDump{sonic.ConfigFastest.NewEncoder(f)}
+
+			var (
+				missingPreimages int
+				accounts         uint64
+				start            = time.Now()
+				logged           = time.Now()
+			)
+
+			// First file is the one that does the root dump
+			if i == 0 {
+				log.Info("Trie dumping started", "root", s.trie.Hash())
+				c.OnRoot(s.trie.Hash())
+			}
+
+			end := common.Hex2Bytes("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+			if i < len(keys)-1 {
+				end = keys[i+1]
+			}
+
+			log.Info("Starting trie iterator at", "key", string(key), "end", end, "index", i)
+			trieIt, err := s.trie.NodeIterator(key)
+			if err != nil {
+				panic(err)
+			}
+
+			it := trie.NewIterator(trieIt)
+			for it.Next() {
+				if bytes.Compare(it.Key, conf.End) > 0 {
+					break
+				}
+				var data types.StateAccount
+				if err := rlp.DecodeBytes(it.Value, &data); err != nil {
+					panic(err)
+				}
+				account := DumpAccount{
+					Balance:   data.Balance.String(),
+					Nonce:     data.Nonce,
+					Root:      data.Root[:],
+					CodeHash:  data.CodeHash,
+					SecureKey: it.Key,
+				}
+				var (
+					addrBytes = s.trie.GetKey(it.Key)
+					addr      = common.BytesToAddress(addrBytes)
+					address   *common.Address
+				)
+				if addrBytes == nil {
+					// Preimage missing
+					missingPreimages++
+					if conf.OnlyWithAddresses {
+						continue
+					}
+					account.SecureKey = it.Key
+				} else {
+					address = &addr
+				}
+				obj := newObject(s, addr, &data)
+				if !conf.SkipCode {
+					account.Code = obj.Code()
+				}
+
+				if !conf.SkipStorage {
+					account.Storage = make(map[common.Hash]string)
+					tr, err := obj.getTrie()
+					if err != nil {
+						log.Error("Failed to load storage trie", "err", err)
+						continue
+					}
+					trieIt, err := tr.NodeIterator(nil)
+					if err != nil {
+						log.Error("Failed to create trie iterator", "err", err)
+						continue
+					}
+					storageIt := trie.NewIterator(trieIt)
+					for storageIt.Next() {
+						_, content, _, err := rlp.Split(storageIt.Value)
+						if err != nil {
+							log.Error("Failed to decode the value returned by iterator", "error", err)
+							continue
+						}
+						account.Storage[common.BytesToHash(s.trie.GetKey(storageIt.Key))] = common.Bytes2Hex(content)
+					}
+				}
+				c.OnAccount(address, account)
+				accounts++
+				if time.Since(logged) > 8*time.Second {
+					log.Info("Trie dumping in progress", "at", it.Key, "accounts", accounts,
+						"elapsed", common.PrettyDuration(time.Since(start)))
+					logged = time.Now()
+				}
+				if conf.Max > 0 && accounts >= conf.Max {
+					if it.Next() {
+						nextKey = it.Key
+					}
+					break
+				}
+			}
+			if missingPreimages > 0 {
+				log.Warn("Dump incomplete due to missing preimages", "missing", missingPreimages)
+			}
+			log.Info("Trie dumping complete", "accounts", accounts,
+				"elapsed", common.PrettyDuration(time.Since(start)))
+		}(i, key)
+	}
+
+	wg.Done()
+
+	return nil
+}
+
 // RawDump returns the entire state an a single large object
 func (s *StateDB) RawDump(opts *DumpConfig) Dump {
 	dump := &Dump{
@@ -248,8 +400,8 @@ func (s *StateDB) Dump(opts *DumpConfig) []byte {
 }
 
 // IterativeDump dumps out accounts as json-objects, delimited by linebreaks on stdout
-func (s *StateDB) IterativeDump(opts *DumpConfig, output sonic.Encoder) {
-	s.DumpToCollector(iterativeDump{output}, opts)
+func (s *StateDB) IterativeDump(opts *DumpConfig) {
+	s.DumpToCollectorParallel(opts)
 }
 
 // IteratorDump dumps out a batch of accounts starts with the given start key

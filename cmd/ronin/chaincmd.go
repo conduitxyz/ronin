@@ -190,6 +190,7 @@ It's deprecated, please use "geth db export" instead.
 			utils.ExcludeStorageFlag,
 			utils.IncludeIncompletesFlag,
 			utils.StartKeyFlag,
+			utils.EndKeyFlag,
 			utils.DumpLimitFlag,
 		},
 		Category: "BLOCKCHAIN COMMANDS",

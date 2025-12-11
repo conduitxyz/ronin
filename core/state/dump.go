@@ -257,6 +257,8 @@ func (s *StateDB) DumpToCollectorParallel(conf *DumpConfig) (nextKey []byte) {
 		common.Hex2Bytes("f000000000000000000000000000000000000000000000000000000000000000"),
 	}
 
+	mx := sync.Mutex{}
+
 	wg := sync.WaitGroup{}
 	for i, key := range keys {
 		wg.Add(1)
@@ -289,6 +291,7 @@ func (s *StateDB) DumpToCollectorParallel(conf *DumpConfig) (nextKey []byte) {
 				end = keys[i+1]
 			}
 
+			mx.Lock()
 			log.Info("Starting trie iterator at", "key", string(key), "end", string(end), "index", i)
 			trieIt, err := s.trie.NodeIterator(key)
 			if err != nil {
@@ -353,6 +356,7 @@ func (s *StateDB) DumpToCollectorParallel(conf *DumpConfig) (nextKey []byte) {
 						account.Storage[common.BytesToHash(s.trie.GetKey(storageIt.Key))] = common.Bytes2Hex(content)
 					}
 				}
+				mx.Unlock()
 				c.OnAccount(address, account)
 				accounts++
 				if time.Since(logged) > 8*time.Second {
@@ -366,6 +370,7 @@ func (s *StateDB) DumpToCollectorParallel(conf *DumpConfig) (nextKey []byte) {
 					}
 					break
 				}
+				mx.Lock()
 			}
 			if missingPreimages > 0 {
 				log.Warn("Dump incomplete due to missing preimages", "missing", missingPreimages)

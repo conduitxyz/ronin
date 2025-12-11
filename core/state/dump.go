@@ -238,34 +238,18 @@ func (s *StateDB) DumpToCollectorParallel(conf *DumpConfig) (nextKey []byte) {
 	if conf == nil {
 		conf = new(DumpConfig)
 	}
-	keys := [][]byte{
-		common.Address{}.Bytes(),
-		common.Hex2Bytes("1000000000000000000000000000000000000000000000000000000000000000"),
-		common.Hex2Bytes("2000000000000000000000000000000000000000000000000000000000000000"),
-		common.Hex2Bytes("3000000000000000000000000000000000000000000000000000000000000000"),
-		common.Hex2Bytes("4000000000000000000000000000000000000000000000000000000000000000"),
-		common.Hex2Bytes("5000000000000000000000000000000000000000000000000000000000000000"),
-		common.Hex2Bytes("6000000000000000000000000000000000000000000000000000000000000000"),
-		common.Hex2Bytes("7000000000000000000000000000000000000000000000000000000000000000"),
-		common.Hex2Bytes("8000000000000000000000000000000000000000000000000000000000000000"),
-		common.Hex2Bytes("9000000000000000000000000000000000000000000000000000000000000000"),
-		common.Hex2Bytes("a000000000000000000000000000000000000000000000000000000000000000"),
-		common.Hex2Bytes("b000000000000000000000000000000000000000000000000000000000000000"),
-		common.Hex2Bytes("c000000000000000000000000000000000000000000000000000000000000000"),
-		common.Hex2Bytes("d000000000000000000000000000000000000000000000000000000000000000"),
-		common.Hex2Bytes("e000000000000000000000000000000000000000000000000000000000000000"),
-		common.Hex2Bytes("f000000000000000000000000000000000000000000000000000000000000000"),
-	}
-
-	mx := sync.Mutex{}
 
 	wg := sync.WaitGroup{}
-	for i, key := range keys {
+	parallelism := 71
+	tasks := make(chan *DumpAccount, parallelism)
+	root := s.trie.Hash()
+	for i := range parallelism {
 		wg.Add(1)
-		go func(i int, key []byte) {
+		go func() {
 			defer func() {
 				wg.Done()
 			}()
+
 			f, err := os.OpenFile(conf.OutPathPrefix+fmt.Sprintf("_%d", i), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 			if err != nil {
 				panic(err)
@@ -273,112 +257,106 @@ func (s *StateDB) DumpToCollectorParallel(conf *DumpConfig) (nextKey []byte) {
 
 			c := iterativeDump{sonic.ConfigFastest.NewEncoder(f)}
 
-			var (
-				missingPreimages int
-				accounts         uint64
-				start            = time.Now()
-				logged           = time.Now()
-			)
-
 			// First file is the one that does the root dump
 			if i == 0 {
-				log.Info("Trie dumping started", "root", s.trie.Hash())
-				c.OnRoot(s.trie.Hash())
+				log.Info("Trie dumping started", "root", root)
+				c.OnRoot(root)
 			}
 
-			end := common.Hex2Bytes("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
-			if i < len(keys)-1 {
-				end = keys[i+1]
+			for acc := range tasks {
+				c.Encode(acc)
 			}
-
-			mx.Lock()
-			log.Info("Starting trie iterator at", "key", string(key), "end", string(end), "index", i)
-			trieIt, err := s.trie.NodeIterator(key)
-			if err != nil {
-				panic(err)
-			}
-
-			it := trie.NewIterator(trieIt)
-			for it.Next() {
-				if bytes.Compare(it.Key, conf.End) > 0 {
-					break
-				}
-				var data types.StateAccount
-				if err := rlp.DecodeBytes(it.Value, &data); err != nil {
-					panic(err)
-				}
-				account := DumpAccount{
-					Balance:   data.Balance.String(),
-					Nonce:     data.Nonce,
-					Root:      data.Root[:],
-					CodeHash:  data.CodeHash,
-					SecureKey: it.Key,
-				}
-				var (
-					addrBytes = s.trie.GetKey(it.Key)
-					addr      = common.BytesToAddress(addrBytes)
-					address   *common.Address
-				)
-				if addrBytes == nil {
-					// Preimage missing
-					missingPreimages++
-					if conf.OnlyWithAddresses {
-						continue
-					}
-					account.SecureKey = it.Key
-				} else {
-					address = &addr
-				}
-				obj := newObject(s, addr, &data)
-				if !conf.SkipCode {
-					account.Code = obj.Code()
-				}
-
-				if !conf.SkipStorage {
-					account.Storage = make(map[common.Hash]string)
-					tr, err := obj.getTrie()
-					if err != nil {
-						log.Error("Failed to load storage trie", "err", err)
-						continue
-					}
-					trieIt, err := tr.NodeIterator(nil)
-					if err != nil {
-						log.Error("Failed to create trie iterator", "err", err)
-						continue
-					}
-					storageIt := trie.NewIterator(trieIt)
-					for storageIt.Next() {
-						_, content, _, err := rlp.Split(storageIt.Value)
-						if err != nil {
-							log.Error("Failed to decode the value returned by iterator", "error", err)
-							continue
-						}
-						account.Storage[common.BytesToHash(s.trie.GetKey(storageIt.Key))] = common.Bytes2Hex(content)
-					}
-				}
-				mx.Unlock()
-				c.OnAccount(address, account)
-				accounts++
-				if time.Since(logged) > 8*time.Second {
-					log.Info("Trie dumping in progress", "at", it.Key, "accounts", accounts,
-						"elapsed", common.PrettyDuration(time.Since(start)))
-					logged = time.Now()
-				}
-				if conf.Max > 0 && accounts >= conf.Max {
-					if it.Next() {
-						nextKey = it.Key
-					}
-					break
-				}
-				mx.Lock()
-			}
-			if missingPreimages > 0 {
-				log.Warn("Dump incomplete due to missing preimages", "missing", missingPreimages)
-			}
-			log.Info("Trie dumping complete", "accounts", accounts,
-				"elapsed", common.PrettyDuration(time.Since(start)))
-		}(i, key)
+		}()
 	}
+
+	var (
+		missingPreimages int
+		accounts         uint64
+		start            = time.Now()
+		logged           = time.Now()
+	)
+
+	trieIt, err := s.trie.NodeIterator(conf.Start)
+	if err != nil {
+		panic(err)
+	}
+
+	it := trie.NewIterator(trieIt)
+	for it.Next() {
+		var data types.StateAccount
+		if err := rlp.DecodeBytes(it.Value, &data); err != nil {
+			panic(err)
+		}
+		account := DumpAccount{
+			Balance:   data.Balance.String(),
+			Nonce:     data.Nonce,
+			Root:      data.Root[:],
+			CodeHash:  data.CodeHash,
+			SecureKey: it.Key,
+		}
+		var (
+			addrBytes = s.trie.GetKey(it.Key)
+			addr      = common.BytesToAddress(addrBytes)
+			address   *common.Address
+		)
+		if addrBytes == nil {
+			// Preimage missing
+			missingPreimages++
+			if conf.OnlyWithAddresses {
+				continue
+			}
+			account.SecureKey = it.Key
+		} else {
+			address = &addr
+		}
+		obj := newObject(s, addr, &data)
+		if !conf.SkipCode {
+			account.Code = obj.Code()
+		}
+
+		if !conf.SkipStorage {
+			account.Storage = make(map[common.Hash]string)
+			tr, err := obj.getTrie()
+			if err != nil {
+				log.Error("Failed to load storage trie", "err", err)
+				continue
+			}
+			trieIt, err := tr.NodeIterator(nil)
+			if err != nil {
+				log.Error("Failed to create trie iterator", "err", err)
+				continue
+			}
+			storageIt := trie.NewIterator(trieIt)
+			for storageIt.Next() {
+				_, content, _, err := rlp.Split(storageIt.Value)
+				if err != nil {
+					log.Error("Failed to decode the value returned by iterator", "error", err)
+					continue
+				}
+				account.Storage[common.BytesToHash(s.trie.GetKey(storageIt.Key))] = common.Bytes2Hex(content)
+			}
+		}
+		account.Address = address
+		tasks <- &account
+		//c.OnAccount(address, account)
+		accounts++
+		if time.Since(logged) > 8*time.Second {
+			log.Info("Trie dumping in progress", "at", it.Key, "accounts", accounts,
+				"elapsed", common.PrettyDuration(time.Since(start)))
+			logged = time.Now()
+		}
+		if conf.Max > 0 && accounts >= conf.Max {
+			if it.Next() {
+				nextKey = it.Key
+			}
+			break
+		}
+	}
+	if missingPreimages > 0 {
+		log.Warn("Dump incomplete due to missing preimages", "missing", missingPreimages)
+	}
+	log.Info("Trie dumping complete", "accounts", accounts,
+		"elapsed", common.PrettyDuration(time.Since(start)))
 
 	wg.Done()
 

@@ -523,8 +523,14 @@ func dump(ctx *cli.Context) error {
 				wg.Done()
 			}()
 
-			newConf := conf
-			newConf.Index = 1
+			newConf := &state.DumpConfig{
+				SkipCode:          conf.SkipCode,
+				SkipStorage:       conf.SkipStorage,
+				OnlyWithAddresses: conf.OnlyWithAddresses,
+				Start:             conf.Start,
+				OutPathPrefix:     conf.OutPathPrefix,
+			}
+			newConf.Index = i
 			newConf.Start = key
 			if i < len(keys)-1 {
 				newConf.End = keys[i+1]

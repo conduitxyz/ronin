@@ -23,6 +23,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -494,23 +495,65 @@ func dump(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	triedb := utils.MakeTrieDatabase(ctx, db, true, false) // always enable preimage lookup
-	defer triedb.Close()
-	state, err := state.New(root, state.NewDatabaseWithNodeDB(db, triedb), nil)
 
-	if err != nil {
-		return err
+	keys := [][]byte{
+		common.Address{}.Bytes(),
+		common.Hex2Bytes("1000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("2000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("3000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("4000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("5000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("6000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("7000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("8000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("9000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("a000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("b000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("c000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("d000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("e000000000000000000000000000000000000000000000000000000000000000"),
+		common.Hex2Bytes("f000000000000000000000000000000000000000000000000000000000000000"),
 	}
-	if ctx.Bool(utils.IterativeOutputFlag.Name) {
-		state.IterativeDump(conf)
-	} else {
-		if conf.OnlyWithAddresses {
-			fmt.Fprintf(os.Stderr, "If you want to include accounts with missing preimages, you need iterative output, since"+
-				" otherwise the accounts will overwrite each other in the resulting mapping.")
-			return fmt.Errorf("incompatible options")
-		}
-		fmt.Println(string(state.Dump(conf)))
+
+	wg := sync.WaitGroup{}
+	for i, key := range keys {
+		wg.Add(1)
+		go func() {
+			defer func() {
+				wg.Done()
+			}()
+
+			newConf := conf
+			newConf.Index = 1
+			newConf.Start = key
+			if i < len(keys)-1 {
+				newConf.End = keys[i+1]
+			} else {
+				newConf.End = nil
+			}
+
+			triedb := utils.MakeTrieDatabase(ctx, db, true, false) // always enable preimage lookup
+			defer triedb.Close()
+			state, err := state.New(root, state.NewDatabaseWithNodeDB(db, triedb), nil)
+			if err != nil {
+				panic(err)
+			}
+			if ctx.Bool(utils.IterativeOutputFlag.Name) {
+				state.IterativeDump(newConf)
+			} else {
+				if conf.OnlyWithAddresses {
+					fmt.Fprintf(os.Stderr, "If you want to include accounts with missing preimages, you need iterative output, since"+
+						" otherwise the accounts will overwrite each other in the resulting mapping.")
+					panic(fmt.Errorf("incompatible options"))
+				}
+				fmt.Println(string(state.Dump(conf)))
+			}
+		}()
+
 	}
+
+	wg.Wait()
+
 	return nil
 }
 

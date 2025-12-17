@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/bytedance/sonic"
@@ -43,6 +42,7 @@ type DumpConfig struct {
 	End               []byte
 	Max               uint64
 	OutPathPrefix     string
+	Index             int
 }
 
 // DumpCollector interface which the state trie calls during iteration
@@ -239,42 +239,26 @@ func (s *StateDB) DumpToCollectorParallel(conf *DumpConfig) (nextKey []byte) {
 		conf = new(DumpConfig)
 	}
 
-	wg := sync.WaitGroup{}
-	parallelism := 71
-	tasks := make(chan *DumpAccount, parallelism)
 	root := s.trie.Hash()
-	for i := range parallelism {
-		wg.Add(1)
-		go func() {
-			defer func() {
-				wg.Done()
-			}()
-
-			f, err := os.OpenFile(conf.OutPathPrefix+fmt.Sprintf("_%d", i), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-			if err != nil {
-				panic(err)
-			}
-
-			c := iterativeDump{sonic.ConfigFastest.NewEncoder(f)}
-
-			// First file is the one that does the root dump
-			if i == 0 {
-				log.Info("Trie dumping started", "root", root)
-				c.OnRoot(root)
-			}
-
-			for acc := range tasks {
-				c.Encode(acc)
-			}
-		}()
-	}
-
 	var (
 		missingPreimages int
 		accounts         uint64
 		start            = time.Now()
 		logged           = time.Now()
 	)
+
+	f, err := os.OpenFile(conf.OutPathPrefix+fmt.Sprintf("_%d", conf.Index), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		panic(err)
+	}
+
+	c := iterativeDump{sonic.ConfigFastest.NewEncoder(f)}
+
+	// First file is the one that does the root dump
+	if conf.Index == 0 {
+		log.Info("Trie dumping started", "root", root)
+		c.OnRoot(root)
+	}
 
 	trieIt, err := s.trie.NodeIterator(conf.Start)
 	if err != nil {
@@ -283,6 +267,9 @@ func (s *StateDB) DumpToCollectorParallel(conf *DumpConfig) (nextKey []byte) {
 
 	it := trie.NewIterator(trieIt)
 	for it.Next() {
+		if conf.End != nil && bytes.Compare(it.Key, (conf.End)) > 0 {
+			break
+		}
 		var data types.StateAccount
 		if err := rlp.DecodeBytes(it.Value, &data); err != nil {
 			panic(err)
@@ -337,8 +324,7 @@ func (s *StateDB) DumpToCollectorParallel(conf *DumpConfig) (nextKey []byte) {
 			}
 		}
 		account.Address = address
-		tasks <- &account
-		//c.OnAccount(address, account)
+		c.OnAccount(address, account)
 		accounts++
 		if time.Since(logged) > 8*time.Second {
 			log.Info("Trie dumping in progress", "at", it.Key, "accounts", accounts,
@@ -357,8 +343,6 @@ func (s *StateDB) DumpToCollectorParallel(conf *DumpConfig) (nextKey []byte) {
 	}
 	log.Info("Trie dumping complete", "accounts", accounts,
 		"elapsed", common.PrettyDuration(time.Since(start)))
-
-	wg.Done()
 
 	return nil
 }

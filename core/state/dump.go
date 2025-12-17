@@ -328,7 +328,7 @@ func (s *StateDB) DumpToCollectorParallel(conf *DumpConfig) (nextKey []byte) {
 		accounts++
 		if time.Since(logged) > 8*time.Second {
 			log.Info("Trie dumping in progress", "at", it.Key, "accounts", accounts,
-				"elapsed", common.PrettyDuration(time.Since(start)))
+				"elapsed", common.PrettyDuration(time.Since(start)), "index", conf.Index)
 			logged = time.Now()
 		}
 		if conf.Max > 0 && accounts >= conf.Max {
@@ -342,7 +342,7 @@ func (s *StateDB) DumpToCollectorParallel(conf *DumpConfig) (nextKey []byte) {
 		log.Warn("Dump incomplete due to missing preimages", "missing", missingPreimages)
 	}
 	log.Info("Trie dumping complete", "accounts", accounts,
-		"elapsed", common.PrettyDuration(time.Since(start)))
+		"elapsed", common.PrettyDuration(time.Since(start)), "index", conf.Index)
 
 	return nil
 }

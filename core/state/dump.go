@@ -252,7 +252,7 @@ func (s *StateDB) DumpToCollectorParallel(conf *DumpConfig) (nextKey []byte) {
 		panic(err)
 	}
 
-	c := iterativeDump{sonic.ConfigStd.NewEncoder(f)}
+	c := iterativeDump{json.NewEncoder(f)}
 
 	// First file is the one that does the root dump
 	if conf.Index == 0 {

@@ -261,6 +261,8 @@ func (s *StateDB) DumpToCollectorParallel(conf *DumpConfig) (nextKey []byte) {
 		c.OnRoot(root)
 	}
 
+	// Documentation states that it starts on the key *after* what you put in,
+	// but its not true, it will start at the given key, if it exists.
 	trieIt, err := s.trie.NodeIterator(conf.Start)
 	if err != nil {
 		panic(err)
@@ -268,7 +270,7 @@ func (s *StateDB) DumpToCollectorParallel(conf *DumpConfig) (nextKey []byte) {
 
 	it := trie.NewIterator(trieIt)
 	for it.Next() {
-		if conf.End != nil && bytes.Compare(it.Key, (conf.End)) > 0 {
+		if conf.End != nil && bytes.Compare(it.Key, (conf.End)) >= 0 {
 			break
 		}
 		var data types.StateAccount

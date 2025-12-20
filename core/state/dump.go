@@ -251,6 +251,7 @@ func (s *StateDB) DumpToCollectorParallel(conf *DumpConfig) (nextKey []byte) {
 	if err != nil {
 		panic(err)
 	}
+	defer f.Close()
 
 	c := iterativeDump{json.NewEncoder(f)}
 

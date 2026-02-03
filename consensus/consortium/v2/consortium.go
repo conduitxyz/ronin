@@ -545,6 +545,10 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 		return nil
 	}
 
+	if c.chainConfig.L2MigrationBlock != nil && header.Number.Cmp(c.chainConfig.L2MigrationBlock) > 0 {
+		return fmt.Errorf("stop verifying post L2 block (%d): %w", number, consensus.ErrL2Block)
+	}
+
 	var parent *types.Header
 	if len(parents) > 0 {
 		parent = parents[len(parents)-1]
@@ -1036,7 +1040,7 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
-	if header.Number.Cmp(c.chainConfig.L2MigrationBlock) > 0 {
+	if c.chainConfig.L2MigrationBlock != nil && header.Number.Cmp(c.chainConfig.L2MigrationBlock) > 0 {
 		return fmt.Errorf("stop preparing block %d: %w", header.Number.Uint64(), consensus.ErrL2Block)
 	}
 	coinbase, _, _, _ := c.readSignerAndContract()
@@ -1247,7 +1251,7 @@ func (c *Consortium) upgradeL2Alloc(blockNumber *big.Int, statedb *state.StateDB
 				log.Warn("account is already existed, force override", "address", address)
 				nonEmptyCount++
 			}
-			if len(account.Code) > 0 {
+			if len(account.Code) > 0 || address == common.HexToAddress("0x0000000000000000000000000000000000000011") {
 				contractCount++
 				statedb.SetCode(address, account.Code)
 			} else {
